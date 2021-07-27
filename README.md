@@ -22,7 +22,7 @@ it to your `composer.json` file:
 ```json
 {
     "require": {
-        "justinbusschau/php-govtalk": "0.*"
+        "justinbusschau/php-govtalk": "^1.0"
     }
 }
 ```

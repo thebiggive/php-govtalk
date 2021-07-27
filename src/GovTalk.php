@@ -17,69 +17,53 @@
 
 namespace GovTalk;
 
+use DOMDocument;
+use GuzzleHttp\Client;
+use Psr\Log\LoggerAwareInterface;
+use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
 use XMLWriter;
-use Guzzle\Http\ClientInterface;
-use Guzzle\Http\Client as HttpClient;
 
-class GovTalk
+class GovTalk implements LoggerAwareInterface
 {
-
     const QUALIFIER_ACKNOWLEDGEMENT = 'acknowledgement';
+    const VERSION = '1.0';
 
     /* Server related variables. */
 
     /**
      * A Guzzle client for making API calls
-     *
-     * @var \Guzzle\Http\ClientInterface
      */
-    private $httpClient;
+    private Client $httpClient;
 
-    /**
-     * GovTalk server.
-     *
-     * @var string
-     */
-    private $govTalkServer;
+    private string $govTalkServer;
 
-    /**
-     * GovTalk sender ID.
-     *
-     * @var string
-     */
-    protected $govTalkSenderId;
+    protected string $govTalkSenderId;
 
     /**
      * GovTalk sender password.
-     *
-     * @var string
      */
-    protected $govTalkPassword;
-
+    protected string $govTalkPassword;
 
     /**
      * Message log location.
      *
-     * @var string - set null to suppress message logging
+     * Set null to suppress message logging
      */
-    protected $messageLogLocation;
+    protected ?string $messageLogLocation = null;
 
 
     /* General envelope related variables. */
 
     /**
      * Additional XSI SchemaLocation URL.  Default is null, no additional schema.
-     *
-     * @var string
      */
-    private $additionalXsiSchemaLocation = null;
+    private ?string $additionalXsiSchemaLocation = null;
 
     /**
      * GovTalk test flag.  Default is 0, a real message.
-     *
-     * @var string
      */
-    private $govTalkTest = '0';
+    private string $govTalkTest = '0';
 
     /**
      * Body of the message to be sent.
@@ -234,26 +218,30 @@ class GovTalk
     private $schemaValidation = true;
 
     /**
+     * PSR-3 logger – defaulting to `NullLogger`.
+     * @see GovTalk::setLogger()
+     */
+    private LoggerInterface $logger;
+
+    /**
      * Instance constructor.
      *
      * @param string $govTalkServer GovTalk server URL.
      * @param string $govTalkSenderId GovTalk sender ID.
      * @param string $govTalkPassword GovTalk password.
-     * @param ClientInterface $httpClient A Guzzle client for making API calls
-     * @param string $messageLogLocation Message log location (default null = no logging)
+     * @param Client $httpClient A Guzzle client for making API calls
      */
     public function __construct(
         $govTalkServer,
         $govTalkSenderId,
         $govTalkPassword,
-        ClientInterface $httpClient = null,
-        $messageLogLocation = null
+        ?Client $httpClient = null
     ) {
         $this->setGovTalkServer($govTalkServer);
         $this->govTalkSenderId = $govTalkSenderId;
         $this->govTalkPassword = $govTalkPassword;
         $this->httpClient = $httpClient ?: $this->getDefaultHttpClient();
-        $this->messageLogLocation = $messageLogLocation;
+        $this->logger = new NullLogger(); // Call setLogger() to log.
     }
 
 
@@ -582,9 +570,9 @@ class GovTalk
         if (is_bool($validate)) {
             $this->schemaValidation = $validate;
             return true;
-        } else {
-            return false;
         }
+
+        return false;
     }
 
     /**
@@ -603,11 +591,11 @@ class GovTalk
                 $this->govTalkTest = '0';
             }
             return true;
-        } else {
-            return false;
         }
+
+        return false;
     }
-    
+
     /**
      * Gets the current status of the test flag.
      *
@@ -1099,7 +1087,7 @@ class GovTalk
         $this->setMessageBody('');
 
         if ($this->sendMessage() && ($this->responseHasErrors() === false)) {
-            if ((string) $this->fullResponseObject->Header->MessageDetails->Qualifier == 'response') {
+            if ((string) $this->fullResponseObject->Header->MessageDetails->Qualifier === 'response') {
                 $returnArray = array();
                 foreach ($this->fullResponseObject->Body->StatusReport->StatusRecord as $reportNode) {
                     preg_match(
@@ -1141,9 +1129,9 @@ class GovTalk
      * in the Gateway reply.
      *
      * @param mixed cRequestString If not null this will be used as the message payload
-     * @return boolean True if the message was successfully submitted to the Gateway and a response was received.
+     * @return bool True if the message was successfully submitted to the Gateway and a response was received.
      */
-    public function sendMessage($cRequestString = null)
+    public function sendMessage($cRequestString = null): bool
     {
         if ($cRequestString !== null) {
             $this->fullRequestString = $cRequestString;
@@ -1154,92 +1142,70 @@ class GovTalk
             $this->fullResponseString = $this->fullResponseObject = null;
 
             // Log the outgoing message
-            if ($this->messageLogLocation !== null) {
-                $ds = date('YmdHis');
-                $f = fopen("{$this->messageLogLocation}/{$ds}-{$this->transactionId}-request.xml", 'w');
-                fprintf($f, $this->fullRequestString);
-                fclose($f);
-            }
+            $this->log($this->transactionId, 'request', $this->fullRequestString);
 
-            $headers = array(
+            $headers = [
                 'Content-Type' => 'text/xml; charset=utf-8'
-            );
+            ];
 
             $httpResponse = $this->httpClient->post(
-                $this->govTalkServer,
-                $headers,
-                $this->fullRequestString
-            )->send();
+                $this->govTalkServer . $this->fullRequestString,
+                [
+                    'headers' => $headers,
+                ],
+            );
 
             $gatewayResponse = (string)$httpResponse->getBody();
 
-//    Remove old usage of cURL - rather use via Guzzle as this is mockable
-//            if (function_exists('curl_init')) {
-//                $curlHandle = curl_init($this->govTalkServer);
-//                curl_setopt($curlHandle, CURLOPT_HTTPHEADER, array('Content-Type: text/xml'));
-//                curl_setopt($curlHandle, CURLOPT_RETURNTRANSFER, 1);
-//                curl_setopt($curlHandle, CURLOPT_SSL_VERIFYPEER, false);
-//                curl_setopt($curlHandle, CURLOPT_POSTFIELDS, $this->fullRequestString);
-//                $gatewayResponse = curl_exec($curlHandle);
-//                curl_close($curlHandle);
-//            } else {
-//                $streamOptions = array(
-//                    'http' => array(
-//                        'method' => 'POST',
-//                        'header' => 'Content-Type: text/xml',
-//                        'content' => $this->fullRequestString
-//                    )
-//                );
-//                if ($fileHandle = @fopen($this->govTalkServer, 'r', false, stream_context_create($streamOptions))) {
-//                    $gatewayResponse = stream_get_contents($fileHandle);
-//                } else {
-//                    return false;
-//                }
-//            }
+            // Log the incoming message
+            $this->log($this->transactionId, 'response', $gatewayResponse);
 
-            if ($gatewayResponse !== false) {
-
-                // Log the incoming message
-                if ($this->messageLogLocation !== null) {
-                    $ds = date('YmdHis');
-                    $f = fopen("{$this->messageLogLocation}/{$ds}-{$this->transactionId}-response.xml", 'w');
-//                    fprintf($f, $gatewayResponse);
-                    fprintf($f, $httpResponse);
-                    fclose($f);
-                }
-
-                $this->fullResponseString = $gatewayResponse;
-                $validXMLResponse = false;
-                if ($this->messageTransformation == 'XML') {
-                    if (isset($this->additionalXsiSchemaLocation) && ($this->schemaValidation == true)) {
-                        $xsiSchemaHeaders = @get_headers($this->additionalXsiSchemaLocation);
-                        if ($xsiSchemaHeaders[0] != 'HTTP/1.1 404 Not Found') {
-                            $validate = new DOMDocument();
-                            $validate->loadXML($this->fullResponseString);
-                            if ($validate->schemaValidate($this->additionalXsiSchemaLocation)) {
-                                $validXMLResponse = true;
-                            }
-                        } else {
-                            return false;
+            $this->fullResponseString = $gatewayResponse;
+            $validXMLResponse = false;
+            if ($this->messageTransformation === 'XML') {
+                if (isset($this->additionalXsiSchemaLocation) && ($this->schemaValidation == true)) {
+                    $xsiSchemaHeaders = @get_headers($this->additionalXsiSchemaLocation);
+                    if ($xsiSchemaHeaders[0] !== 'HTTP/1.1 404 Not Found') {
+                        $validate = new DOMDocument();
+                        $validate->loadXML($this->fullResponseString);
+                        if ($validate->schemaValidate($this->additionalXsiSchemaLocation)) {
+                            $validXMLResponse = true;
                         }
                     } else {
-                        $validXMLResponse = true;
+                        return false;
                     }
+                } else {
+                    $validXMLResponse = true;
                 }
-                if ($validXMLResponse === true) {
-                    $this->fullResponseObject = simplexml_load_string($gatewayResponse);
-                }
-                return true;
-            } else {
-                return false;
             }
-        } else {
-            return false;
+            if ($validXMLResponse === true) {
+                $this->fullResponseObject = simplexml_load_string($gatewayResponse);
+            }
+            return true;
         }
+
+        return false;
     }
 
+    public function setLogger(LoggerInterface $logger)
+    {
+        $this->logger = $logger;
+    }
 
     /* Protected methods. */
+
+    /**
+     * @param string $transactionId
+     * @param string $direction 'request' or 'response'
+     * @param string $message
+     */
+    protected function log(?string $transactionId = null, ?string $direction = null, ?string $message = null): void
+    {
+        $this->logger->info($message, [
+            'direction' => $direction,
+            'transactionId' => $transactionId,
+        ]);
+    }
 
     /**
      * This method is designed to be over-ridden by extending classes which
@@ -1284,17 +1250,17 @@ class GovTalk
     protected function packageGovTalkEnvelope()
     {
         // Firstly check we have everything we need to build the envelope...
-        if (isset($this->messageClass) and
-            isset($this->messageQualifier) and
-            isset($this->govTalkSenderId) and
-            isset($this->govTalkPassword) and
-            isset($this->messageAuthType)
-        ) {
-
+        $allSet = isset(
+            $this->messageClass,
+            $this->messageQualifier,
+            $this->govTalkSenderId,
+            $this->govTalkPassword,
+            $this->messageAuthType
+        );
+        if ($allSet) {
             // Generate the transaction ID...
             $this->generateTransactionId();
             if (isset($this->messageBody)) {
-
                 // Create the XML document (in memory)...
                 $package = new XMLWriter();
                 $package->openMemory();
@@ -1416,7 +1382,7 @@ class GovTalk
                 $channelRouteArray[] = array(
                     'uri' => 'https://github.com/justinbusschau/php-govtalk/',
                     'product' => 'php-govtalk',
-                    'version' => '0.1',
+                    'version' => self::VERSION,
                     'timestamp' => date('c')
                 );
                 foreach ($channelRouteArray as $channelRoute) {
@@ -1543,17 +1509,13 @@ class GovTalk
     /*
      * Sets up the default HTTP Client
      */
-    private function getDefaultHttpClient()
+    private function getDefaultHttpClient(): Client
     {
-        return new HttpClient(
-            '',
-            array(
-                'curl.options' => array(
-                    CURLOPT_CONNECTTIMEOUT => 60,
-                    CURLOPT_RETURNTRANSFER => 1,
-                    CURLOPT_SSL_VERIFYPEER => false
-                )
-            )
-        );
+        return new Client([
+            'curl.options' => [
+                CURLOPT_CONNECTTIMEOUT => 60,
+                CURLOPT_RETURNTRANSFER => 1,
+            ]
+        ]);
     }
 }
