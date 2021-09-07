@@ -12,7 +12,7 @@
     vendor/bin/phpcs --standard=PSR2 src && vendor/bin/phpunit --coverage-text
     ```
 
-    The [Travis CI build](https://travis-ci.org/justinbusschau/php-govtalk) runs on PHP `5.3`, `5.4` and `5.5`.
+    The [Travis CI build](https://travis-ci.org/thebiggive/php-govtalk) runs on PHP 7.4 and 8.0.
 
 * Commit the modifications to your own forked repo in your topic branch.
 * Ensure your code is nicely formatted in the [PSR-2](https://github.com/php-fig/fig-standards/blob/master/accepted/PSR-2-coding-style-guide.md)

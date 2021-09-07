@@ -2,10 +2,10 @@
 
 **A library for applications which interface with the UK Government Gateway**
 
-[![Build Status](https://travis-ci.org/JustinBusschau/php-govtalk.png?branch=master)](https://travis-ci.org/JustinBusschau/php-govtalk)
-[![Latest Stable Version](https://poser.pugx.org/justinbusschau/php-govtalk/version.png)](https://packagist.org/packages/justinbusschau/php-govtalk)
-[![Total Downloads](https://poser.pugx.org/justinbusschau/php-govtalk/d/total.png)](https://packagist.org/packages/justinbusschau/php-govtalk)
-[![License](https://poser.pugx.org/justinbusschau/php-govtalk/license.svg)](https://packagist.org/packages/justinbusschau/php-govtalk)
+[![Build Status](https://travis-ci.org/thebiggive/php-govtalk.png?branch=main)](https://travis-ci.org/thebiggive/php-govtalk)
+[![Latest Stable Version](https://poser.pugx.org/thebiggive/php-govtalk/version.png)](https://packagist.org/packages/thebiggive/php-govtalk)
+[![Total Downloads](https://poser.pugx.org/thebiggive/php-govtalk/d/total.png)](https://packagist.org/packages/thebiggive/php-govtalk)
+[![License](https://poser.pugx.org/thebiggive/php-govtalk/license.svg)](https://packagist.org/packages/thebiggive/php-govtalk)
 
 The GovTalk Message Envelope is a standard developed by the United Kingdom government as a means of encapsulating
 a range of government XML services in a single standard data format.
@@ -22,7 +22,7 @@ it to your `composer.json` file:
 ```json
 {
     "require": {
-        "justinbusschau/php-govtalk": "^1.0"
+        "thebiggive/php-govtalk": "^1.0"
     }
 }
 ```
@@ -40,4 +40,4 @@ Document Submission Protocol. The following libraries currently use / extend Gov
 
 Library | Composer Package | Maintainer
 --- | --- | ---
-[HMRC Gif Aid](https://github.com/justinbusschau/hmrc-gift-aid) | justinbusschau/hmrc-gift-aid | [Justin Busschau](https://github.com/justinbusschau)
+[HMRC Gift Aid](https://github.com/thebiggive/hmrc-gift-aid) | thebiggive/hmrc-gift-aid | [Noel Light-Hilary](https://github.com/noellh)

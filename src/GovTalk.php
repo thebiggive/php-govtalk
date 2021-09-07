@@ -1380,7 +1380,7 @@ class GovTalk implements LoggerAwareInterface
                 // Channel routing...
                 $channelRouteArray = $this->messageChannelRouting;
                 $channelRouteArray[] = array(
-                    'uri' => 'https://github.com/justinbusschau/php-govtalk/',
+                    'uri' => 'https://github.com/thebiggive/php-govtalk/',
                     'product' => 'php-govtalk',
                     'version' => self::VERSION,
                     'timestamp' => date('c')
