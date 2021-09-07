@@ -1,8 +1,8 @@
 {
-    "name": "justinbusschau/php-govtalk",
+    "name": "thebiggive/php-govtalk",
     "type": "library",
     "description": "A library for applications which interface with the UK Government Gateway",
-    "homepage": "https://github.com/justinbusschau/php-govtalk",
+    "homepage": "https://github.com/thebiggive/php-govtalk",
     "license": "GPLv3",
     "authors": [
         {
@@ -12,19 +12,38 @@
         {
             "name": "Justin Busschau",
             "email": "justin.busschau@gmail.com"
+        },
+        {
+            "name": "Noel Light-Hilary",
+            "email": "noel@thebiggive.org.uk",
+            "homepage": "https://noellh.com/"
         }
     ],
     "autoload": {
         "psr-4": { "GovTalk\\" : "src/" }
     },
+    "config": {
+        "optimize-autoloader": true,
+        "platform": {
+            "php": "7.4.21"
+        },
+        "sort-packages": true
+    },
     "require": {
-        "php": ">=5.3.2",
-        "guzzle/guzzle": "~3.1"
+        "php": "^7.4 | ^8.0",
+        "ext-curl": "*",
+        "ext-dom": "*",
+        "ext-xmlwriter": "*",
+        "guzzlehttp/guzzle": "^7.3.0",
+        "psr/log": "^1.1.4"
     },
     "require-dev": {
-        "guzzle/plugin-mock": "~3.1",
-        "mockery/mockery": "~0.8",
-        "phpunit/phpunit": "~3.7.16",
-        "squizlabs/php_codesniffer": "~1.4"
+        "phpunit/phpunit": "^9.5.7",
+        "roave/security-advisories": "dev-master",
+        "squizlabs/php_codesniffer": "^3.6.0"
+    },
+    "scripts": {
+        "lint:check": "phpcs --standard=PSR2 src",
+        "test": "phpunit --coverage-text"
     }
 }

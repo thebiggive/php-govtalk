@@ -40,7 +40,7 @@ class GovTalkTest extends TestCase
     /**
      * Set up the test environment
      */
-    public function setUp()
+    public function setUp(): void
     {
         parent::setUp();
 
@@ -71,18 +71,7 @@ class GovTalkTest extends TestCase
         $this->gtService = $this->setUpService();
     }
 
-    private function setUpService()
-    {
-        return new GovTalk(
-            $this->gatewayURL,
-            $this->gatewayUserID,
-            $this->gatewayUserPassword,
-            $this->getHttpClient(),
-            null
-        );
-    }
-
-    public function testSettingTestFlag()
+    public function testSettingTestFlag(): void
     {
         $this->assertTrue($this->gtService->setTestFlag(false));
         $this->assertFalse($this->gtService->getTestFlag());
@@ -94,7 +83,7 @@ class GovTalkTest extends TestCase
         $this->assertTrue($this->gtService->getTestFlag());
     }
 
-    public function testMessageAuthentication()
+    public function testMessageAuthentication(): void
     {
         $this->assertTrue($this->gtService->setMessageAuthentication('alternative'));
         $this->assertEquals($this->gtService->getMessageAuthentication(), 'alternative');
@@ -106,7 +95,7 @@ class GovTalkTest extends TestCase
         $this->assertEquals($this->gtService->getMessageAuthentication(), 'clear');
     }
 
-    public function testSettingEmailAddress()
+    public function testSettingEmailAddress(): void
     {
         $this->assertTrue($this->gtService->setSenderEmailAddress('jane@doeofjohn.com'));
         $this->assertEquals($this->gtService->getSenderEmailAddress(), 'jane@doeofjohn.com');
@@ -117,52 +106,52 @@ class GovTalkTest extends TestCase
         $this->assertTrue($this->gtService->setSenderEmailAddress('joe@bloggs.com'));
         $this->assertEquals($this->gtService->getSenderEmailAddress(), 'joe@bloggs.com');
     }
-    
-    public function testAddingMessageKey()
+
+    public function testAddingMessageKey(): void
     {
         $this->assertTrue($this->gtService->addMessageKey('VATRegNo', '999900001'));
         $this->assertFalse($this->gtService->addMessageKey(array('VATRegNo'), '999900001'));
     }
 
-    public function testDeletingMessageKey()
+    public function testDeletingMessageKey(): void
     {
         $this->assertTrue($this->gtService->addMessageKey('MyKey', '123456789'));
         $this->assertEquals($this->gtService->deleteMessageKey('MyKey'), 1);
     }
 
-    public function testResettingMessageKeys()
+    public function testResettingMessageKeys(): void
     {
         $this->assertTrue($this->gtService->addMessageKey('VATRegNo', '999900001'));
         $this->assertTrue($this->gtService->addMessageKey('MyKey', '123456789'));
         $this->assertTrue($this->gtService->resetMessageKeys());
     }
 
-    public function testSettingMessageClass()
+    public function testSettingMessageClass(): void
     {
         $this->assertFalse($this->gtService->setMessageClass('HVD'));
         $this->assertTrue($this->gtService->setMessageClass('HMRC-VAT-DEC'));
     }
 
-    public function testSettingMessageQualifier()
+    public function testSettingMessageQualifier(): void
     {
         $this->assertTrue($this->gtService->setMessageQualifier('error'));
         $this->assertFalse($this->gtService->setMessageQualifier('other'));
         $this->assertTrue($this->gtService->setMessageQualifier('request'));
     }
 
-    public function testSettingMessageFunction()
+    public function testSettingMessageFunction(): void
     {
         $this->assertTrue($this->gtService->setMessageFunction('submit'));
     }
 
-    public function testAddingChannelRoute()
+    public function testAddingChannelRoute(): void
     {
         $this->assertFalse($this->gtService->addChannelRoute(array('uri' => 'a', 'product' => 'b', 'version' => 'c')));
         $this->assertTrue($this->gtService->addChannelRoute('a', 'b', 'c', array(array('1','2','3')), '2014-04-04T12:28.123'));
         $this->assertTrue($this->gtService->addChannelRoute('d', 'e', 'f', null, '', true));
     }
 
-    public function testSettingMessageBody()
+    public function testSettingMessageBody(): void
     {
         $this->assertFalse($this->gtService->setMessageBody(array('')));
         $this->assertTrue($this->gtService->setMessageBody(new XMLWriter));
@@ -174,7 +163,7 @@ class GovTalkTest extends TestCase
         );
     }
 
-    public function testConstructAndSendMessage()
+    public function testConstructAndSendMessage(): void
     {
         $this->setMockHttpResponse('VatReturnAuthFailure.txt');
 
@@ -196,19 +185,19 @@ class GovTalkTest extends TestCase
         $this->assertTrue($this->gtService->responseHasErrors());
     }
 
-    public function testSendPrebuiltMessage()
+    public function testSendPrebuiltMessage(): void
     {
         $preBuiltMessage = $this->makeGiftAidSubmission();
         $this->assertSame($preBuiltMessage, $this->gtService->getFullXMLRequest());
         $this->assertTrue(is_string($this->gtService->getFullXMLResponse()));
     }
 
-    public function testGivenNoSubmission_getResponseQualifier_ReturnsFalse()
+    public function testGivenNoSubmission_getResponseQualifier_ReturnsFalse(): void
     {
         $this->assertFalse( $this->gtService->getResponseQualifier() );
     }
 
-    public function testGivenSubmission_getResponseQualifier_ReturnsAcknowledgement()
+    public function testGivenSubmission_getResponseQualifier_ReturnsAcknowledgement(): void
     {
         $this->makeGiftAidSubmission();
         $this->assertSame( GovTalk::QUALIFIER_ACKNOWLEDGEMENT, $this->gtService->getResponseQualifier() );
@@ -217,13 +206,27 @@ class GovTalkTest extends TestCase
     /**
      * @return string
      */
-    protected function makeGiftAidSubmission()
+    protected function makeGiftAidSubmission(): string
     {
-        $this->setMockHttpResponse( 'GiftAidResponseAck.txt' );
-        $preBuiltMessage = file_get_contents( __DIR__ . '/Messages/GiftAidRequest.txt' );
+        $this->setMockHttpResponse('GiftAidResponseAck.txt');
+        // Re-call this to actually replace the service with the one that has the non-empty
+        // mock response queue.
+        $this->gtService = $this->setUpService();
 
-        $this->gtService->sendMessage( $preBuiltMessage );
+        $preBuiltMessage = file_get_contents(__DIR__ . '/Messages/GiftAidRequest.txt');
+
+        $this->gtService->sendMessage($preBuiltMessage);
         return $preBuiltMessage;
+    }
+
+    private function setUpService(): GovTalk
+    {
+        return new GovTalk(
+            $this->gatewayURL,
+            $this->gatewayUserID,
+            $this->gatewayUserPassword,
+            $this->getHttpClient()
+        );
     }
 }
 
