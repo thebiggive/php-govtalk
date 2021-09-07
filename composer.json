@@ -1,8 +1,8 @@
 {
-    "name": "justinbusschau/php-govtalk",
+    "name": "thebiggive/php-govtalk",
     "type": "library",
     "description": "A library for applications which interface with the UK Government Gateway",
-    "homepage": "https://github.com/justinbusschau/php-govtalk",
+    "homepage": "https://github.com/thebiggive/php-govtalk",
     "license": "GPLv3",
     "authors": [
         {
@@ -12,6 +12,11 @@
         {
             "name": "Justin Busschau",
             "email": "justin.busschau@gmail.com"
+        },
+        {
+            "name": "Noel Light-Hilary",
+            "email": "noel@thebiggive.org.uk",
+            "homepage": "https://noellh.com/"
         }
     ],
     "autoload": {
