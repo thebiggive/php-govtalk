@@ -45,14 +45,6 @@ class GovTalk implements LoggerAwareInterface
      */
     protected string $govTalkPassword;
 
-    /**
-     * Message log location.
-     *
-     * Set null to suppress message logging
-     */
-    protected ?string $messageLogLocation = null;
-
-
     /* General envelope related variables. */
 
     /**
@@ -243,7 +235,6 @@ class GovTalk implements LoggerAwareInterface
         $this->httpClient = $httpClient ?: $this->getDefaultHttpClient();
         $this->logger = new NullLogger(); // Call setLogger() to log.
     }
-
 
     /* Public methods. */
 
