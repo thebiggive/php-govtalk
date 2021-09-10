@@ -33,6 +33,7 @@
         "php": "^7.4 | ^8.0",
         "ext-curl": "*",
         "ext-dom": "*",
+        "ext-simplexml": "*",
         "ext-xmlwriter": "*",
         "guzzlehttp/guzzle": "^7.3.0",
         "psr/log": "^1.1.4"

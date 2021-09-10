@@ -19,6 +19,7 @@ namespace GovTalk;
 
 use DOMDocument;
 use GuzzleHttp\Client;
+use GuzzleHttp\Exception\TransferException;
 use Psr\Log\LoggerAwareInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
@@ -354,15 +355,11 @@ class GovTalk implements LoggerAwareInterface
      * Returns the full XML request from the last Gateway request, if there is
      * one.
      *
-     * @return mixed The full text request from the Gateway, or false if this isn't set.
+     * @return string|bool The full text request from the Gateway, or false if this isn't set.
      */
     public function getFullXMLRequest()
     {
-        if (isset($this->fullRequestString)) {
-            return $this->fullRequestString;
-        } else {
-            return false;
-        }
+        return $this->fullRequestString ?? false;
     }
 
     /**
@@ -1139,12 +1136,19 @@ class GovTalk implements LoggerAwareInterface
                 'Content-Type' => 'text/xml; charset=utf-8'
             ];
 
-            $httpResponse = $this->httpClient->post(
-                $this->govTalkServer . $this->fullRequestString,
-                [
-                    'headers' => $headers,
-                ],
-            );
+            try {
+                $httpResponse = $this->httpClient->post(
+                    $this->govTalkServer,
+                    [
+                        'body' => $this->fullRequestString,
+                        'headers' => $headers,
+                    ],
+                );
+            } catch (TransferException $exception) {
+                $this->logError($exception->getCode(), $exception->getMessage());
+
+                return false;
+            }
 
             $gatewayResponse = (string)$httpResponse->getBody();
 
