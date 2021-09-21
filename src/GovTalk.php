@@ -1291,6 +1291,7 @@ class GovTalk implements LoggerAwareInterface
                 $package->writeElement('CorrelationID', $this->messageCorrelationId);
                 $package->writeElement('Transformation', $this->messageTransformation);
                 $package->writeElement('GatewayTest', $this->govTalkTest);
+                $package->writeElement('GatewayTimestamp', date('c'));
 
                 /**
                  * When using the Local Test Service (LTS) you need to set a

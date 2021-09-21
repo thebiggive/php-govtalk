@@ -8,6 +8,7 @@
    <TransactionID>13873265714136</TransactionID>
    <Transformation>XML</Transformation>
    <GatewayTest>1</GatewayTest>
+   <GatewayTimestamp>2021-09-21T11:24:53+00:00</GatewayTimestamp>
   </MessageDetails>
   <SenderDetails>
    <IDAuthentication>
