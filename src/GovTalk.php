@@ -770,8 +770,8 @@ class GovTalk implements LoggerAwareInterface
 
     /**
      * Sets the type of authentication to use for with the message.  The message
-     * type must be one of 'alternative', 'clear', 'MD5' or 'W3Csigned'. Other
-     * values will not be set and will return false.
+     * type must now be 'clear'. Other values will not be set and will return false.
+     * HMRC docs as of 2021 suggest that at least the MD5 type has been retired.
      *
      * @param string $messageAuthType The type of authentication to set.
      * @return boolean True if the authentication type is valid and set, false if it's invalid (and therefore not set).
@@ -779,10 +779,7 @@ class GovTalk implements LoggerAwareInterface
     public function setMessageAuthentication($messageAuthType)
     {
         switch ($messageAuthType) {
-            case 'alternative':
             case 'clear':
-            case 'MD5':
-            case 'W3Csigned':
                 $this->messageAuthType = $messageAuthType;
                 return true;
             break;
@@ -1174,6 +1171,8 @@ class GovTalk implements LoggerAwareInterface
                 }
             }
             if ($validXMLResponse === true) {
+                // TODO props suppress warnings and bubble errors through in a more helpful way.
+                // Return false when there are major parse errors.
                 $this->fullResponseObject = simplexml_load_string($gatewayResponse);
             }
             return true;
