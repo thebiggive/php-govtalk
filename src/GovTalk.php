@@ -779,6 +779,7 @@ class GovTalk implements LoggerAwareInterface
     public function setMessageAuthentication($messageAuthType)
     {
         switch ($messageAuthType) {
+            case 'alternative':
             case 'clear':
                 $this->messageAuthType = $messageAuthType;
                 return true;
