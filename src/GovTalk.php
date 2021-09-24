@@ -58,6 +58,8 @@ class GovTalk implements LoggerAwareInterface
      */
     private string $govTalkTest = '0';
 
+    private ?\DateTime $timestamp = null;
+
     /**
      * Body of the message to be sent.
      *
@@ -1187,6 +1189,22 @@ class GovTalk implements LoggerAwareInterface
         $this->logger = $logger;
     }
 
+    /**
+     * When using the Local Test Service (LTS) you need to set a
+     * time stamp in the Message Details element. Typically you would pass in
+     * a `new DateTime()` (i.e. now) but for some uses cases – such as demonstrating
+     * a simulated request for Recognition of your software – you may need to pass
+     * in a historic date.
+     *
+     * When sending Live or External Test Service data the key must *not* be set.
+     *
+     * @param \DateTime|null $timestamp Timestamp of request, for non-live scenarios.
+     */
+    public function setTimestamp(?\DateTime $timestamp): void
+    {
+        $this->timestamp = $timestamp;
+    }
+
     /* Protected methods. */
 
     /**
@@ -1293,20 +1311,11 @@ class GovTalk implements LoggerAwareInterface
                 $package->writeElement('GatewayTest', $this->govTalkTest);
 
                 /**
-                 * When using the Local Test Service (LTS) you need to set a
-                 * time stamp in the Message Details element. If not testing
-                 * to the LTS, the next four lines should be commented out
-                 * to avoid adding the GatewayTimestamp element.
-                 *
-                 * NOTE: Using the standard ISO 8601 date format [i.e. date('c')] seemed
-                 *     to cause the LTS some trouble, hence the hacked datestamp below.
+                 * @see GovTalk::setTimestamp() for usage.
                  */
-                /*
-                $package->writeElement(
-                    'GatewayTimestamp',
-                    ($this->govTalkTest == '1') ? substr(date('c'), 0, -6).'.000' : ''
-                );
-                */
+                if ($this->timestamp && $this->govTalkTest === '1') {
+                    $package->writeElement('GatewayTimestamp', $this->timestamp->format('c'));
+                }
 
                 $package->endElement(); # MessageDetails
 
