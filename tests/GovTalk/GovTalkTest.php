@@ -151,6 +151,44 @@ class GovTalkTest extends TestCase
         $this->assertTrue($this->gtService->addChannelRoute('d', 'e', 'f', null, '', true));
     }
 
+    public function testSettingChannelRoute(): void
+    {
+        $this->setMockHttpResponse('GiftAidResponseAck.txt');
+        // Re-call this to actually replace the service with the one that has the non-empty
+        // mock response queue.
+        $this->gtService = $this->setUpService();
+        $this->gtService->setMessageBody('');
+
+        $this->gtService->setTestFlag(true);
+        $this->gtService->setMessageClass('HMRC-CHAR-CLM');
+        $this->gtService->setMessageAuthentication('clear');
+        $this->gtService->setMessageQualifier('request');
+        $this->gtService->setMessageFunction('submit');
+        $this->gtService->setMessageCorrelationId('');
+        $this->gtService->setMessageTransformation('XML');
+        $this->gtService->addTargetOrganisation('IR');
+        $this->gtService->addMessageKey('CHARID', 'CD67890');
+
+        // Note that the `$id` array is actually invalid, which for now serves as a crude, implicit
+        // check that this route is *not* used since providing [['1', '2', '3']] causes a crash!
+        $this->assertTrue($this->gtService->addChannelRoute('a', 'b', 'c', [['1','2','3']], '2014-04-04T12:28.123'));
+        $this->assertTrue(
+            $this->gtService->setChannelRoute(
+                '9999',
+                'DownstreamApp',
+                '0.0',
+                ['type' => 'some type', 'value' => 'some value'],
+                '2021-12-07T00:00.000',
+            )
+        );
+
+        // TODO This test should ideally use the HTTP client mock to verify that the sent payload
+        // includes the second ChannelRouting's info ("URI" 9999 etc.) and not the first. But for
+        // now, as noted above, the slightly brittle message construction approach means that
+        // we are implicitly verifying this in a more crude way.
+        $this->assertTrue($this->gtService->sendMessage());
+    }
+
     public function testSettingMessageBody(): void
     {
         $this->assertFalse($this->gtService->setMessageBody(array('')));
@@ -204,6 +242,9 @@ class GovTalkTest extends TestCase
     }
 
     /**
+     * Create *and send* a mock Gift Aid claim submission, returning the request
+     * body for now.
+     *
      * @return string
      */
     protected function makeGiftAidSubmission(): string

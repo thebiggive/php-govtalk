@@ -140,7 +140,7 @@ class GovTalk implements LoggerAwareInterface
      *
      * @var array
      */
-    private $messageChannelRouting = array();
+    private $messageChannelRouting = [];
 
 
     /* Target details related variables. */
@@ -217,6 +217,12 @@ class GovTalk implements LoggerAwareInterface
      * @see GovTalk::setLogger()
      */
     private LoggerInterface $logger;
+
+    /**
+     * @var bool    Requested by HMRC that this does *not* happen, but not prohibited by the
+     *              general GovTalk-Envelope spec. Potentially useful for other departments?
+     */
+    private bool $autoAppendOwnChannelRouting = true;
 
     /**
      * Instance constructor.
@@ -609,29 +615,28 @@ class GovTalk implements LoggerAwareInterface
      * @param string $xmlSchema The URL of an XML schema to check the XML body against.
      * @return boolean True if the body is valid and set, false if it's invalid (and therefore not set).
      */
-    public function setMessageBody($messageBody, $xmlSchema = null)
+    public function setMessageBody($messageBody, $xmlSchema = null): bool
     {
-        if (is_string($messageBody) || is_a($messageBody, 'XMLWriter')) {
-            if ($xmlSchema !== null) {
-                $validate = new DOMDocument();
-                if (is_string($messageBody)) {
-                    $validate->loadXML($messageBody);
-                } else {
-                    $validate->loadXML($messageBody->outputMemory());
-                }
-                if ($validate->schemaValidate($xmlSchema)) {
-                    $this->messageBody = $messageBody;
-                    return true;
-                } else {
-                    return false;
-                }
+        if (!is_string($messageBody) && !($messageBody instanceof \XMLWriter)) {
+            return false;
+        }
+
+        if ($xmlSchema !== null) {
+            $validate = new DOMDocument();
+            if (is_string($messageBody)) {
+                $validate->loadXML($messageBody);
             } else {
+                $validate->loadXML($messageBody->outputMemory());
+            }
+            if ($validate->schemaValidate($xmlSchema)) {
                 $this->messageBody = $messageBody;
                 return true;
             }
-        } else {
             return false;
         }
+
+        $this->messageBody = $messageBody;
+        return true;
     }
 
 
@@ -806,6 +811,34 @@ class GovTalk implements LoggerAwareInterface
     /* Channel routing related methods. */
 
     /**
+     * Sets a channel route, replacing any that exist including this library's default. Implicitly
+     * turns off this library's feature of adding its own <ChannelRouting/> element, as this is
+     * incompatible with e.g. HMRC's preferred submission format according to HMRC Software
+     * Developer Support Team as of November '21.
+     *
+     * @param string        $uri    'URI' is a misnomer for at least some departments. For example
+     *                              HMRC expect this to be your 4 digit Vendor ID and nothing else.
+     * @param string|null   $softwareName
+     * @param string|null   $softwareVersion
+     * @param array|null    $id Seems to require an assoc array which 'type' and 'value' keys, if set.
+     * @param mixed         $timestamp
+     * @return bool Whether route was valid and set. If not, routes will be left empty.
+     */
+    public function setChannelRoute(
+        string $uri,
+        ?string $softwareName = null,
+        ?string $softwareVersion = null,
+        array $id = null,
+        $timestamp = null
+    ): bool {
+        $this->setAutoAppendOwnChannelRouting(false);
+
+        $this->messageChannelRouting = [];
+
+        return $this->addChannelRoute($uri, $softwareName, $softwareVersion, $id, $timestamp);
+    }
+
+    /**
      * Adds a channel routing element to the message.  Channel routes should be
      * added in order by every application which the message has passed through
      * prior to being sent to the Gateway.  php-govtalk does not support name
@@ -813,10 +846,15 @@ class GovTalk implements LoggerAwareInterface
      * automatically be added at the moment the route is added.  Any optional
      * arguments may be skipped by passing null as that argument.
      *
-     * Applications using php-govtalk should <i>always</i> add at least one
+     * Applications using php-govtalk may add at least one
      * additional channel route before sending a message to the Gateway.
+     * However, contrary to the guidance in previous versions of this library
+     * and the XML spec, HMRC have stated that for their submissions they expect
+     * and prefer only a single <ChannelRouting/> element. You should therefore
+     * check in with the department you are sending data to and choose between
+     * this method and {@see setChannelRoute()} accordingly.
      *
-     * Note: php-govtalk will always add itself as the last route in the chain.
+     * Note: When using *this* method, php-govtalk will add itself as the last route in the chain.
      * This is to identify the library to the Gateway and to assist in tracking
      * down issues caused by the library itself.
      *
@@ -867,17 +905,17 @@ class GovTalk implements LoggerAwareInterface
                         break;
                     }
                 }
-                if ($matchedChannel == false) {
+                if (!$matchedChannel) {
                     $this->messageChannelRouting[] = $newRoute;
                 }
                 return true;
-            } else {
-                $this->messageChannelRouting[] = $newRoute;
-                return true;
             }
-        } else {
-            return false;
+
+            $this->messageChannelRouting[] = $newRoute;
+            return true;
         }
+
+        return false;
     }
 
 
@@ -1205,6 +1243,14 @@ class GovTalk implements LoggerAwareInterface
         $this->timestamp = $timestamp;
     }
 
+    /**
+     * @param bool $autoAppendOwnChannelRouting
+     */
+    public function setAutoAppendOwnChannelRouting(bool $autoAppendOwnChannelRouting): void
+    {
+        $this->autoAppendOwnChannelRouting = $autoAppendOwnChannelRouting;
+    }
+
     /* Protected methods. */
 
     /**
@@ -1270,184 +1316,199 @@ class GovTalk implements LoggerAwareInterface
             $this->govTalkPassword,
             $this->messageAuthType
         );
-        if ($allSet) {
-            // Generate the transaction ID...
-            $this->generateTransactionId();
-            if (isset($this->messageBody)) {
-                // Create the XML document (in memory)...
-                $package = new XMLWriter();
-                $package->openMemory();
-                $package->setIndent(true);
+        if (!$allSet) {
+            $this->logError(
+                'ENVELOPE_PROPERTIES_MISSING',
+                'Essential information to build envelope missing',
+                'GovTalk::packageGovTalkEnvelope',
+            );
+            return false;
+        }
 
-                // Packaging...
-                $package->startElement('GovTalkMessage');
-                $xsiSchemaName = 'http://www.govtalk.gov.uk/CM/envelope';
-                $xsiSchemaLocation = $xsiSchemaName.' http://www.govtalk.gov.uk/documents/envelope-v2-0.xsd';
-                if ($this->additionalXsiSchemaLocation !== null) {
-                    $xsiSchemaLocation .= ' '.$this->additionalXsiSchemaLocation;
-                }
-                $package->writeAttribute('xmlns', $xsiSchemaName);
-                $package->writeAttributeNS(
-                    'xsi',
-                    'schemaLocation',
-                    'http://www.w3.org/2001/XMLSchema-instance',
-                    $xsiSchemaLocation
-                );
-                $package->writeElement('EnvelopeVersion', '2.0');
+        if (!isset($this->messageBody)) {
+            $this->logError(
+                'MESSAGE_BODY_MISSING',
+                'Message body missing',
+                'GovTalk::packageGovTalkEnvelope',
+            );
+            return false;
+        }
 
-                // Header...
-                $package->startElement('Header');
+        $this->generateTransactionId();
 
-                // Message details...
-                $package->startElement('MessageDetails');
-                $package->writeElement('Class', $this->messageClass);
-                $package->writeElement('Qualifier', $this->messageQualifier);
-                if ($this->messageFunction !== null) {
-                    $package->writeElement('Function', $this->messageFunction);
-                }
-                $package->writeElement('TransactionID', $this->transactionId);
-                $package->writeElement('CorrelationID', $this->messageCorrelationId);
-                $package->writeElement('Transformation', $this->messageTransformation);
-                $package->writeElement('GatewayTest', $this->govTalkTest);
+        // Create the XML document (in memory)...
+        $package = new XMLWriter();
+        $package->openMemory();
+        $package->setIndent(true);
 
-                /**
-                 * @see GovTalk::setTimestamp() for usage.
-                 */
-                if ($this->timestamp && $this->govTalkTest === '1') {
-                    $package->writeElement('GatewayTimestamp', $this->timestamp->format('c'));
-                }
+        // Packaging...
+        $package->startElement('GovTalkMessage');
+        $xsiSchemaName = 'http://www.govtalk.gov.uk/CM/envelope';
+        $xsiSchemaLocation = $xsiSchemaName.' http://www.govtalk.gov.uk/documents/envelope-v2-0.xsd';
+        if ($this->additionalXsiSchemaLocation !== null) {
+            $xsiSchemaLocation .= ' '.$this->additionalXsiSchemaLocation;
+        }
+        $package->writeAttribute('xmlns', $xsiSchemaName);
+        $package->writeAttributeNS(
+            'xsi',
+            'schemaLocation',
+            'http://www.w3.org/2001/XMLSchema-instance',
+            $xsiSchemaLocation
+        );
+        $package->writeElement('EnvelopeVersion', '2.0');
 
-                $package->endElement(); # MessageDetails
+        // Header...
+        $package->startElement('Header');
 
-                // Sender details...
-                $package->startElement('SenderDetails');
+        // Message details...
+        $package->startElement('MessageDetails');
+        $package->writeElement('Class', $this->messageClass);
+        $package->writeElement('Qualifier', $this->messageQualifier);
+        if ($this->messageFunction !== null) {
+            $package->writeElement('Function', $this->messageFunction);
+        }
+        $package->writeElement('TransactionID', $this->transactionId);
+        $package->writeElement('CorrelationID', $this->messageCorrelationId);
+        $package->writeElement('Transformation', $this->messageTransformation);
+        $package->writeElement('GatewayTest', $this->govTalkTest);
 
-                // Authentication...
-                $package->startElement('IDAuthentication');
-                $package->writeElement('SenderID', $this->govTalkSenderId);
-                $package->startElement('Authentication');
-                switch ($this->messageAuthType) {
-                    case 'alternative':
-                        if ($authenticationArray = $this->generateAlternativeAuthentication($this->transactionId)) {
-                            $package->writeElement('Method', $authenticationArray['method']);
-                            $package->writeElement('Role', 'principal');
-                            $package->writeElement('Value', $authenticationArray['token']);
-                        } else {
-                            return false;
-                        }
-                        break;
-                    case 'clear':
-                        $package->writeElement('Method', 'clear');
-                        $package->writeElement('Role', 'principal');
-                        $package->writeElement('Value', $this->govTalkPassword);
-                        break;
-                    case 'MD5':
-                        $package->writeElement('Method', 'MD5');
-                        $package->writeElement('Value', base64_encode(md5(strtolower($this->govTalkPassword), true)));
-                        break;
-                }
-                $package->endElement(); # Authentication
+        /**
+         * @see GovTalk::setTimestamp() for usage.
+         */
+        if ($this->timestamp && $this->govTalkTest === '1') {
+            $package->writeElement('GatewayTimestamp', $this->timestamp->format('c'));
+        }
 
-                $package->endElement(); # IDAuthentication
-                if ($this->senderEmailAddress !== null) {
-                    $package->writeElement('EmailAddress', $this->senderEmailAddress);
-                }
+        $package->endElement(); # MessageDetails
 
-                $package->endElement(); # SenderDetails
+        // Sender details...
+        $package->startElement('SenderDetails');
 
-                $package->endElement(); # Header
-
-                // GovTalk details...
-                $package->startElement('GovTalkDetails');
-
-                // Keys...
-                if (count($this->govTalkKeys) > 0) {
-                    $package->startElement('Keys');
-                    foreach ($this->govTalkKeys as $keyPair) {
-                        $package->startElement('Key');
-                        $package->writeAttribute('Type', $keyPair['type']);
-                        $package->text($keyPair['value']);
-                        $package->endElement(); # Key
-                    }
-                    $package->endElement(); # Keys
-                }
-
-                // Target details...
-                if (count($this->messageTargetDetails) > 0) {
-                    $package->startElement('TargetDetails');
-                    foreach ($this->messageTargetDetails as $targetOrganisation) {
-                        $package->writeElement('Organisation', $targetOrganisation);
-                    }
-                    $package->endElement(); # TargetDetails
-                }
-
-                // Channel routing...
-                $channelRouteArray = $this->messageChannelRouting;
-                $channelRouteArray[] = array(
-                    'uri' => 'https://github.com/thebiggive/php-govtalk/',
-                    'product' => 'php-govtalk',
-                    'version' => self::VERSION,
-                    'timestamp' => date('c')
-                );
-                foreach ($channelRouteArray as $channelRoute) {
-                    $package->startElement('ChannelRouting');
-                    $package->startElement('Channel');
-                    $package->writeElement('URI', $channelRoute['uri']);
-                    if (array_key_exists('product', $channelRoute)) {
-                        $package->writeElement('Product', $channelRoute['product']);
-                    }
-                    if (array_key_exists('version', $channelRoute)) {
-                        $package->writeElement('Version', $channelRoute['version']);
-                    }
-                    $package->endElement(); # Channel
-
-                    if (array_key_exists('id', $channelRoute) && is_array($channelRoute['id'])) {
-                        foreach ($channelRoute['id'] as $channelRouteId) {
-                            $package->startElement('ID');
-                            $package->writeAttribute('type', $channelRouteId['type']);
-                            $package->text($channelRouteId['value']);
-                            $package->endElement(); # ID
-                        }
-                    }
-
-                    $package->writeElement('Timestamp', $channelRoute['timestamp']);
-                    $package->endElement(); # ChannelRouting
-                }
-                $package->endElement(); # GovTalkDetails
-
-                // Body...
-                $package->startElement('Body');
-                if (is_string($this->messageBody)) {
-                    $package->writeRaw("\n".trim($this->messageBody)."\n");
-                } elseif (is_a($this->messageBody, 'XMLWriter')) {
-                    $package->writeRaw("\n".trim($this->messageBody->outputMemory())."\n");
-                }
-                $package->endElement(); # Body
-
-                $package->endElement(); # GovTalkMessage
-
-                // Flush the buffer, run any extension-specific digests, validate the schema
-                // and return the XML...
-                $xmlPackage = $this->packageDigest($package->flush());
-                $validXMLRequest = true;
-                if (isset($this->additionalXsiSchemaLocation) && ($this->schemaValidation == true)) {
-                    $validation = new DOMDocument();
-                    $validation->loadXML($xmlPackage);
-                    if (!$validation->schemaValidate($this->additionalXsiSchemaLocation)) {
-                        $validXMLRequest = false;
-                    }
-                }
-                if ($validXMLRequest === true) {
-                    return $xmlPackage;
+        // Authentication...
+        $package->startElement('IDAuthentication');
+        $package->writeElement('SenderID', $this->govTalkSenderId);
+        $package->startElement('Authentication');
+        switch ($this->messageAuthType) {
+            case 'alternative':
+                if ($authenticationArray = $this->generateAlternativeAuthentication($this->transactionId)) {
+                    $package->writeElement('Method', $authenticationArray['method']);
+                    $package->writeElement('Role', 'principal');
+                    $package->writeElement('Value', $authenticationArray['token']);
                 } else {
                     return false;
                 }
-            } else {
-                return false;
-            }
-        } else {
-            return false;
+                break;
+            case 'clear':
+                $package->writeElement('Method', 'clear');
+                $package->writeElement('Role', 'principal');
+                $package->writeElement('Value', $this->govTalkPassword);
+                break;
+            case 'MD5':
+                $package->writeElement('Method', 'MD5');
+                $package->writeElement('Value', base64_encode(md5(strtolower($this->govTalkPassword), true)));
+                break;
         }
+        $package->endElement(); # Authentication
+
+        $package->endElement(); # IDAuthentication
+        if ($this->senderEmailAddress !== null) {
+            $package->writeElement('EmailAddress', $this->senderEmailAddress);
+        }
+
+        $package->endElement(); # SenderDetails
+
+        $package->endElement(); # Header
+
+        // GovTalk details...
+        $package->startElement('GovTalkDetails');
+
+        // Keys...
+        if (count($this->govTalkKeys) > 0) {
+            $package->startElement('Keys');
+            foreach ($this->govTalkKeys as $keyPair) {
+                $package->startElement('Key');
+                $package->writeAttribute('Type', $keyPair['type']);
+                $package->text($keyPair['value']);
+                $package->endElement(); # Key
+            }
+            $package->endElement(); # Keys
+        }
+
+        // Target details...
+        if (count($this->messageTargetDetails) > 0) {
+            $package->startElement('TargetDetails');
+            foreach ($this->messageTargetDetails as $targetOrganisation) {
+                $package->writeElement('Organisation', $targetOrganisation);
+            }
+            $package->endElement(); # TargetDetails
+        }
+
+        // Channel routing...
+        $channelRouteArray = $this->messageChannelRouting;
+        if ($this->autoAppendOwnChannelRouting) {
+            $channelRouteArray[] = [
+                // This URI format is not valid for HMRC submissions, but `autoAppendOwnChannelRouting`
+                // should be switched off for those anyway – so sticking with it for now in case it's helpful
+                // for other govt departments.
+                'uri' => 'https://github.com/thebiggive/php-govtalk/',
+                'product' => 'php-govtalk',
+                'version' => self::VERSION,
+                'timestamp' => date('c')
+            ];
+        }
+        foreach ($channelRouteArray as $channelRoute) {
+            $package->startElement('ChannelRouting');
+            $package->startElement('Channel');
+            $package->writeElement('URI', $channelRoute['uri']);
+            if (array_key_exists('product', $channelRoute)) {
+                $package->writeElement('Product', $channelRoute['product']);
+            }
+            if (array_key_exists('version', $channelRoute)) {
+                $package->writeElement('Version', $channelRoute['version']);
+            }
+            $package->endElement(); # Channel
+
+            if (array_key_exists('id', $channelRoute) && is_array($channelRoute['id'])) {
+                foreach ($channelRoute['id'] as $channelRouteId) {
+                    $package->startElement('ID');
+                    $package->writeAttribute('type', $channelRouteId['type']);
+                    $package->text($channelRouteId['value']);
+                    $package->endElement(); # ID
+                }
+            }
+
+            $package->writeElement('Timestamp', $channelRoute['timestamp']);
+            $package->endElement(); # ChannelRouting
+        }
+        $package->endElement(); # GovTalkDetails
+
+        // Body...
+        $package->startElement('Body');
+        if (is_string($this->messageBody)) {
+            $package->writeRaw("\n".trim($this->messageBody)."\n");
+        } elseif ($this->messageBody instanceof \XMLWriter) {
+            $package->writeRaw("\n".trim($this->messageBody->outputMemory())."\n");
+        }
+        $package->endElement(); # Body
+
+        $package->endElement(); # GovTalkMessage
+
+        // Flush the buffer, run any extension-specific digests, validate the schema
+        // and return the XML...
+        $xmlPackage = $this->packageDigest($package->flush());
+        $validXMLRequest = true;
+        if (isset($this->additionalXsiSchemaLocation) && ($this->schemaValidation == true)) {
+            $validation = new DOMDocument();
+            $validation->loadXML($xmlPackage);
+            if (!$validation->schemaValidate($this->additionalXsiSchemaLocation)) {
+                $validXMLRequest = false;
+            }
+        }
+        if ($validXMLRequest === true) {
+            return $xmlPackage;
+        }
+
+        return false;
     }
 
     /**
