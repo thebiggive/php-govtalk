@@ -392,15 +392,15 @@ class GovTalk implements LoggerAwareInterface
      * Returns the Gateway response message qualifier of the last response
      * received, if there is one.
      *
-     * @return integer The response qualifier, or false if there is no response.
+     * @return string|bool The response qualifier, or false if there is no response.
      */
     public function getResponseQualifier()
     {
         if (isset($this->fullResponseObject)) {
             return (string) $this->fullResponseObject->Header->MessageDetails->Qualifier;
-        } else {
-            return false;
         }
+
+        return false;
     }
 
     /**
@@ -421,50 +421,45 @@ class GovTalk implements LoggerAwareInterface
     /**
      * Returns the correlation ID issued by the Gateway in the last response, if
      * there was one.  Once an ID has been assigned by the Gateway, any
-     * subsequent communications regarding a message much include it.
+     * subsequent communications regarding a message must include it.
      *
-     * @return integer The Gateway timestamp as a unix timestamp, or false if this isn't set.
+     * @return string|bool The Correlation ID (pattern: [0-9A-F]{0,32}), or false if this isn't set.
      */
     public function getResponseCorrelationId()
     {
-        if (isset($this->fullResponseObject)) {
-            if (isset($this->fullResponseObject->Header->MessageDetails->CorrelationID)) {
-                return (string) $this->fullResponseObject->Header->MessageDetails->CorrelationID;
-            } else {
-                return false;
-            }
-        } else {
-            return false;
+        if (isset($this->fullResponseObject, $this->fullResponseObject->Header->MessageDetails->CorrelationID)) {
+            return (string)$this->fullResponseObject->Header->MessageDetails->CorrelationID;
         }
+
+        return false;
     }
 
     /**
      * Returns information from the Gateway ResponseEndPoint including recomended
      * retry times, if there is one.
      *
-     * @return array The Gateway endpoint and retry interval, or false if this isn't set.
+     * @return array|bool   The Gateway 'endpoint' and retry 'interval' (assoc array keys),
+     *                      or false if this isn't set.
      */
     public function getResponseEndpoint()
     {
         if (isset($this->fullResponseObject)) {
             if (isset($this->fullResponseObject->Header->MessageDetails->ResponseEndPoint)) {
                 if (isset($this->fullResponseObject->Header->MessageDetails->ResponseEndPoint['PollInterval'])) {
-                    $pollInterval = (string) $this->fullResponseObject
+                    $pollInterval = (string)$this->fullResponseObject
                         ->Header->MessageDetails->ResponseEndPoint['PollInterval'];
                 } else {
                     $pollInterval = null;
                 }
-                $endpoint = (string) $this->fullResponseObject->Header->MessageDetails->ResponseEndPoint;
-                return array(
+                $endpoint = (string)$this->fullResponseObject->Header->MessageDetails->ResponseEndPoint;
+                return [
                     'endpoint' => $endpoint,
                     'interval' => $pollInterval
-                );
-            } else {
-                return false;
+                ];
             }
-        } else {
-            return false;
         }
+
+        return false;
     }
 
 
