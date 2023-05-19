@@ -1,13 +1,10 @@
 language: php
+dist: focal # Ubuntu 20.04 LTS
 
 php:
  - "8.0"
  - "8.1"
  - "8.2"
-
-matrix:
- include:
-  - dist: focal
 
 before_script:
  - composer self-update
