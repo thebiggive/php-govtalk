@@ -32,6 +32,14 @@ And run composer to update your dependencies:
 $ curl -s http://getcomposer.org/installer | php
 $ php composer.phar update
 
+## Library background
+
+Big Give forked this library from [`JustinBusschau/php-govtalk`](https://github.com/JustinBusschau/php-govtalk) in 2021, as that library's
+[no longer maintained](https://github.com/JustinBusschau/php-govtalk/pull/3) for active versions of PHP.
+
+We don't offer support for the library, but plan to maintain it for the foreseeable future, with tests running against verions of PHP [still receiving security support](https://www.php.net/supported-versions.php).
+
+Charities running campaigns on our platform who are using our managed service to claim their Gift Aid can [get in touch here](https://community.biggive.org/s/contact-us).
 
 ## Basic usage
 
